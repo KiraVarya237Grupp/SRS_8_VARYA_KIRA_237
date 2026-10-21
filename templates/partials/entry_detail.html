@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-header d-print-none mb-3">
+    <div class="row align-items-center">
+        <div class="col">
+            <h2 class="page-title">{{ entry.title.title }}</h2>
+            <div class="text-muted mt-1">Детальная информация, жанры и отзыв</div>
+        </div>
+        <div class="col-auto ms-auto">
+            <a href="{% url 'catalog' %}" class="btn btn-outline-secondary">← Назад в каталог</a>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="mb-3">
+            <strong>Тип:</strong> <span class="badge bg-blue-lt">{{ entry.title.get_kind_display }}</span>
+        </div>
+        <div class="mb-3">
+            <strong>Статус:</strong> <span class="badge bg-yellow-lt">{{ entry.get_status_display }}</span>
+        </div>
+        <div class="mb-3">
+            <strong>Оценка:</strong> <span class="badge bg-green-lt fw-bold"> {{ entry.rating|default:"Не оценивалось" }}</span>
+        </div>
+
+        <div class="mb-3">
+            <strong>Жанры:</strong>
+            <div class="mt-1">
+                {% for genre in entry.title.genres.all %}
+                <span class="badge bg-secondary-lt me-1">{{ genre.name }}</span>
+                {% empty %}
+                <span class="text-muted">Жанры не указаны</span>
+                {% endfor %}
+            </div>
+        </div>
+
+        <hr>
+        <h3 class="card-title">Отзыв / Заметки:</h3>
+        <p class="text-secondary" style="white-space: pre-wrap; font-size: 1.1rem; line-height: 1.6;">
+            {{ entry.notes|default:"Для этого произведения пока нет написанных заметок. Вы можете добавить их через панель администратора Django." }}
+        </p>
+    </div>
+</div>
+{% endblock %}

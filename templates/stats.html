@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-header d-print-none mb-3">
+    <div class="row align-items-center">
+        <div class="col">
+            <h2 class="page-title">Аналитика и статистика</h2>
+            <div class="text-muted mt-1">Сводная информация по вашему медиакаталогу</div>
+        </div>
+    </div>
+</div>
+
+<div class="row row-deck row-cards mb-4">
+    <div class="col-sm-6 col-lg-4">
+        <div class="card">
+            <div class="card-body">
+                <div class="subheader">Всего произведений</div>
+                <div class="h1 mb-3 text-blue">{{ total_titles }}</div>
+                <div class="text-muted">Объектов в базе данных</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-4">
+        <div class="card">
+            <div class="card-body">
+                <div class="subheader">Завершено</div>
+                <div class="h1 mb-3 text-green">{{ completed_count }}</div>
+                <div class="text-muted">Просмотрено / Прочитано / Пройдено</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-4">
+        <div class="card">
+            <div class="card-body">
+                <div class="subheader">В процессе</div>
+                <div class="h1 mb-3 text-yellow">{{ in_progress_count }}</div>
+                <div class="text-muted">Активные записи</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <h3 class="card-title">Распределение по статусам</h3>
+        <p class="text-muted">Всего записей отслеживания: <strong>{{ total_entries }}</strong></p>
+        <div class="progress mb-2" style="height: 20px;">
+            <div class="progress-bar bg-green" style="width: {% if total_entries > 0 %}{% widthratio completed_count total_entries 100 %}{% else %}0{% endif %}%" title="Завершено"></div>
+            <div class="progress-bar bg-yellow" style="width: {% if total_entries > 0 %}{% widthratio in_progress_count total_entries 100 %}{% else %}0{% endif %}%" title="В процессе"></div>
+            <div class="progress-bar bg-secondary" style="width: {% if total_entries > 0 %}{% widthratio planned_count total_entries 100 %}{% else %}0{% endif %}%" title="В планах"></div>
+        </div>
+        <div class="d-flex justify-content-between text-muted small">
+            <span>Завершено: {{ completed_count }}</span>
+            <span>В процессе: {{ in_progress_count }}</span>
+            <span>В планах: {{ planned_count }}</span>
+        </div>
+    </div>
+</div>
+{% endblock %}

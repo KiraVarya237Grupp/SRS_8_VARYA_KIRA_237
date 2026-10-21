@@ -1,0 +1,767 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-header d-print-none mb-3">
+    <div class="row align-items-center">
+        <div class="col">
+            <h2 class="page-title">Каталог личной библиотеки и медиатрекер (REST API)</h2>
+            <div class="text-muted mt-1">
+                Контроль состояний просмотра/чтения, учёт форматов в транзакции и журнал событий
+            </div>
+        </div>
+        <div class="col-auto ms-auto d-flex flex-wrap gap-2 align-items-center">
+            <!-- Переключатель пользователя (Разграничение доступа) -->
+            <div class="btn-group" role="group" title="Проверка разграничения прав доступа">
+                <button type="button" class="btn btn-sm btn-outline-dark" id="userBtnMain"
+                        onclick="switchUser('student_main')">
+                    Основной
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-dark" id="userBtnOther"
+                        onclick="switchUser('other_user')">
+                    Другой
+                </button>
+            </div>
+
+            <button type="button" class="btn btn-primary" onclick="openAddEntryModal()">
+                + Добавить запись
+            </button>
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-outline-secondary active" id="viewTableBtn"
+                        onclick="setViewMode('table')">Таблица
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="viewCardsBtn"
+                        onclick="setViewMode('cards')">Карточки
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Панель фильтров: Жанр + Статус + Поиск -->
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <span class="text-muted fw-bold me-2">Фильтр 1 (Жанр):</span>
+            <button type="button" class="btn btn-sm btn-primary genre-chip active" onclick="filterByGenre('all', this)">
+                Все
+            </button>
+            {% for genre in genres %}
+            <button type="button" class="btn btn-sm btn-outline-secondary genre-chip"
+                    onclick="filterByGenre('{{ genre.name|escapejs }}', this)">{{ genre.name }}
+            </button>
+            {% endfor %}
+        </div>
+        <div class="d-flex flex-wrap align-items-center gap-2 border-top pt-2">
+            <span class="text-muted fw-bold me-2">Фильтр 2 (Статус):</span>
+            <button type="button" class="btn btn-sm btn-azure status-chip active" onclick="filterByStatus('all', this)">
+                Все статусы
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary status-chip"
+                    onclick="filterByStatus('planned', this)">
+                Запланировано (Бронь)
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary status-chip"
+                    onclick="filterByStatus('in_progress', this)">
+                В процессе
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary status-chip"
+                    onclick="filterByStatus('completed', this)">
+                Прочитано / Завершено
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <div class="input-icon">
+            <input type="text" id="searchInput" onkeyup="handleSearchInput()" class="form-control"
+                   placeholder="Быстрый поиск по названию произведения...">
+        </div>
+    </div>
+</div>
+
+<!-- Уведомления об успешных операциях и ошибках API (400 / 403 / 404 / 500) -->
+<div id="apiAlertBox" class="alert" style="display: none;" role="alert"></div>
+
+<div id="loadingSpinner" class="text-center py-4" style="display: none;">
+    <div class="spinner-border text-primary" role="status"></div>
+    <div class="text-muted mt-2">Загрузка данных с сервера...</div>
+</div>
+
+<div id="errorMessage" class="alert alert-danger" style="display: none;" role="alert"></div>
+
+<div id="emptyResults" class="alert alert-info text-center" style="display: none;" role="alert">
+    По вашему запросу записей не найдено (или у текущего пользователя пока нет своих объектов).
+</div>
+
+<!-- 1. Табличный вид -->
+<div id="tableView" class="card mb-4">
+    <div class="table-responsive">
+        <table class="table table-vcenter card-table" id="catalogTable">
+            <thead>
+            <tr>
+                <th>Название</th>
+                <th>Тип / Формат</th>
+                <th>Текущее состояние</th>
+                <th>Оценка / Заметки</th>
+                <th>Бизнес-переходы (Транзакция)</th>
+                <th class="w-1">Управление</th>
+            </tr>
+            </thead>
+            <tbody id="apiTableBody">
+            <!-- Данные подгружаются через REST API -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 2. Вид в виде карточек (Grid) -->
+<div id="apiCardsContainer" class="row row-cards mb-4" style="display: none;">
+    <!-- Карточки подгружаются через REST API -->
+</div>
+
+<!-- 3. Панель истории событий (обновляется динамически без перезагрузки) -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h3 class="card-title" id="historyTitle"> История событий библиотеки (все записи)</h3>
+        <button class="btn btn-sm btn-outline-primary" onclick="fetchHistory(0)">Показать всю историю</button>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-vcenter card-table table-striped">
+            <thead>
+            <tr>
+                <th>Дата и время</th>
+                <th>Тип события</th>
+                <th>Инициатор</th>
+                <th>Описание операции</th>
+            </tr>
+            </thead>
+            <tbody id="historyTableBody">
+            <tr>
+                <td colspan="4" class="text-muted text-center">Загрузка истории...</td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Модальное окно добавления записи -->
+<div id="addEntryOverlay"
+     style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:9999; backdrop-filter:blur(4px);"
+     onclick="closeAddEntryModal(event)">
+    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:32px; border-radius:16px; max-width:650px; width:90%; max-height:90vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.4);"
+         onclick="event.stopPropagation()">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3 class="m-0">Добавить произведение в библиотеку</h3>
+            <button onclick="closeAddEntryModal()" class="btn-close"></button>
+        </div>
+
+        <form id="addEntryForm" onsubmit="submitNewEntry(event)">
+            <div class="mb-3">
+                <label class="form-label required">Название произведения</label>
+                <input type="text" id="newEntryTitle" required class="form-control"
+                       placeholder="Например: Интерстеллар или 1984">
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label required">Тип медиа</label>
+                    <select id="newEntryKind" required class="form-select">
+                        <option value="movie">Фильм</option>
+                        <option value="series">Сериал</option>
+                        <option value="book">Книга</option>
+                        <option value="game">Игра</option>
+                    </select>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Формат / Носитель</label>
+                    <input type="text" id="newEntryFormat" value="Бумажная / Цифровая" class="form-control"
+                           placeholder="Например: Бумажная книга">
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Жанры (через запятую)</label>
+                <input type="text" id="newEntryGenres" class="form-control" placeholder="Например: Фантастика, Драма">
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Предварительная оценка (1–10)</label>
+                <input type="number" id="newEntryRating" min="1" max="10" class="form-control"
+                       placeholder="Оставьте пустым, если ещё не оценивали">
+            </div>
+
+            <div id="addEntryMessage" class="alert" style="display:none;"></div>
+
+            <div class="d-flex justify-content-end gap-2 mt-3">
+                <button type="button" class="btn btn-outline-secondary" onclick="closeAddEntryModal()">Отмена</button>
+                <button type="submit" id="submitEntryBtn" class="btn btn-primary">Добавить в библиотеку</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Модальное окно редактирования -->
+<div id="noteOverlay"
+     style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999;"
+     onclick="closeNoteModal(event)">
+    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:30px; border-radius:12px; max-width:550px; width:90%; box-shadow:0 10px 40px rgba(0,0,0,0.3);"
+         onclick="event.stopPropagation()">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3 id="noteModalTitle" class="m-0">Редактирование записи</h3>
+            <button onclick="closeNoteModal()" class="btn-close"></button>
+        </div>
+        <input type="hidden" id="noteEntryId">
+        <div class="mb-3">
+            <label class="form-label">Оценка (1–10)</label>
+            <input type="number" id="editRatingInput" min="1" max="10" class="form-control"
+                   placeholder="1-10">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Личные заметки</label>
+            <textarea id="noteTextarea" class="form-control" rows="4" placeholder="Напишите заметку..."></textarea>
+        </div>
+        <div id="noteMessage" class="alert" style="display:none;"></div>
+        <div class="d-flex justify-content-end gap-2 mt-3">
+            <button class="btn btn-outline-secondary" onclick="closeNoteModal()">Отмена</button>
+            <button class="btn btn-primary" onclick="saveNote()" id="saveNoteBtn">Сохранить (PATCH)</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно подтверждения удаления  -->
+<div id="deleteOverlay"
+     style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999;"
+     onclick="closeDeleteModal(event)">
+    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:28px; border-radius:12px; max-width:450px; width:90%; box-shadow:0 10px 40px rgba(0,0,0,0.3);"
+         onclick="event.stopPropagation()">
+        <h3 class="mb-2 text-danger">Подтверждение удаления</h3>
+        <p class="text-muted mb-3">
+            Вы действительно хотите удалить запись <strong id="deleteModalTitle"></strong>?
+            Если носитель использовался, его доступность на полке автоматически восстановится.
+        </p>
+        <input type="hidden" id="deleteEntryId">
+        <div class="d-flex justify-content-end gap-2">
+            <button class="btn btn-outline-secondary" onclick="closeDeleteModal()">Отмена</button>
+            <button class="btn btn-danger" id="confirmDeleteBtn" onclick="confirmDeleteEntry()">Удалить (DELETE)
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentGenre = 'all';
+    let currentStatus = 'all';
+    let currentAbortController = null;
+
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const errorMessage = document.getElementById('errorMessage');
+    const emptyResults = document.getElementById('emptyResults');
+    const tableBody = document.getElementById('apiTableBody');
+    const cardsContainer = document.getElementById('apiCardsContainer');
+    const apiAlertBox = document.getElementById('apiAlertBox');
+
+    function showApiAlert(message, isError = false) {
+        apiAlertBox.className = isError ? 'alert alert-danger mb-3' : 'alert alert-success mb-3';
+        apiAlertBox.innerHTML = `<strong>${isError ? 'Ошибка API:' : 'Успешно:'}</strong> ${escapeHtml(message)}`;
+        apiAlertBox.style.display = 'block';
+        setTimeout(() => { apiAlertBox.style.display = 'none'; }, 6000);
+    }
+
+    // 1. ЗАГРУЗКА СПИСКА ЧЕРЕЗ REST API С ФИЛЬТРАМИ В URL
+    async function fetchCatalogData() {
+        const searchQuery = document.getElementById('searchInput').value;
+
+        if (currentAbortController) currentAbortController.abort();
+        currentAbortController = new AbortController();
+
+        if (loadingSpinner) loadingSpinner.style.display = 'block';
+        if (errorMessage) errorMessage.style.display = 'none';
+        if (emptyResults) emptyResults.style.display = 'none';
+
+        try {
+            const url = `/api/catalog/?search=${encodeURIComponent(searchQuery)}&genre=${encodeURIComponent(currentGenre)}&status=${encodeURIComponent(currentStatus)}`;
+            const response = await fetch(url, { signal: currentAbortController.signal });
+
+            if (!response.ok) throw new Error(`Ошибка сервера: ${response.status}`);
+
+            const data = await response.json();
+            updateUserButtons(data.current_user);
+            renderCatalog(data.results);
+            fetchGlobalHistory();
+        } catch (error) {
+            if (error.name === 'AbortError') return;
+            if (errorMessage) {
+                errorMessage.style.display = 'block';
+                errorMessage.innerText = 'Не удалось загрузить данные с сервера: ' + error.message;
+            }
+        } finally {
+            if (loadingSpinner) loadingSpinner.style.display = 'none';
+        }
+    }
+
+    function updateUserButtons(username) {
+        const btnMain = document.getElementById('userBtnMain');
+        const btnOther = document.getElementById('userBtnOther');
+        if (!btnMain || !btnOther) return;
+        btnMain.classList.toggle('btn-dark', username === 'student_main');
+        btnMain.classList.toggle('btn-outline-dark', username !== 'student_main');
+        btnOther.classList.toggle('btn-dark', username === 'other_user');
+        btnOther.classList.toggle('btn-outline-dark', username !== 'other_user');
+    }
+
+    async function switchUser(username) {
+        try {
+            const res = await fetch('/api/switch-user/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({ username })
+            });
+
+            const data = await res.json();
+
+            if (res.ok && data.success) {
+                showApiAlert(data.message || `Выполнен вход под пользователем: ${username}`);
+                await fetchCatalogData();
+            } else {
+                showApiAlert('Не удалось переключить пользователя', true);
+            }
+        } catch (err) {
+            console.error('Ошибка переключения пользователя:', err);
+            showApiAlert('Сетевая ошибка при переключении пользователя', true);
+        }
+    }
+
+    // 2. РЕНДЕРИНГ ТАБЛИЦЫ И КАРТОЧЕК
+    function renderCatalog(results) {
+        if (!tableBody || !cardsContainer) return;
+
+        if (results.length === 0) {
+            emptyResults.style.display = 'block';
+            tableBody.innerHTML = '';
+            cardsContainer.innerHTML = '';
+            return;
+        }
+
+        let tableHtml = '';
+        let cardsHtml = '';
+
+        results.forEach(entry => {
+            const genresBadge = entry.genres.map(g => `<span class="badge bg-secondary-lt me-1">${g}</span>`).join('');
+            const safeTitle = escapeHtml(entry.title);
+            const safeNotes = escapeHtml(entry.notes);
+
+            let statusBadgeClass = 'bg-yellow-lt';
+            if (entry.status_code === 'in_progress' || entry.status_code === 'watching') statusBadgeClass = 'bg-azure-lt';
+            if (entry.status_code === 'completed') statusBadgeClass = 'bg-green-lt';
+
+            let transitionBtns = '';
+            if (entry.status_code === 'planned') {
+                transitionBtns += `<button class="btn btn-sm btn-primary me-1 mb-1" onclick="changeStatus(${entry.id}, 'in_progress', false)">▶ Начать</button>`;
+                transitionBtns += `<button class="btn btn-sm btn-outline-warning me-1 mb-1" onclick="changeStatus(${entry.id}, 'completed', false)">Сразу готов</button>`;
+                transitionBtns += `<button class="btn btn-sm btn-outline-danger mb-1" onclick="changeStatus(${entry.id}, 'in_progress', true)">Сбой</button>`;
+            } else if (entry.status_code === 'in_progress' || entry.status_code === 'watching') {
+                transitionBtns += `<button class="btn btn-sm btn-success me-1 mb-1" onclick="changeStatus(${entry.id}, 'completed', false)">Завершить</button>`;
+                transitionBtns += `<button class="btn btn-sm btn-outline-warning mb-1" onclick="changeStatus(${entry.id}, 'planned', false)">Назад</button>`;
+            } else {
+                transitionBtns += `<span class="text-muted small">Финал (переходы закрыты)</span>`;
+            }
+
+            const editBtn = `<button class="btn btn-sm btn-outline-info" onclick="openNoteModal(${entry.id}, '${safeTitle}', '${safeNotes}', '${entry.rating_raw}')">✎ Оценка / Заметка</button>`;
+
+            tableHtml += `
+                <tr id="row-${entry.id}">
+                    <td>
+                        <div class="fw-bold"><a href="${entry.detail_url}" class="text-reset">${entry.title}</a></div>
+                        <div class="mt-1">${genresBadge}</div>
+                        <div class="text-muted small">Владелец: ${entry.owner} | ID: #${entry.id}</div>
+                    </td>
+                    <td>
+                        <span class="badge bg-blue-lt">${entry.kind}</span>
+                        <div class="small mt-1">Формат: <strong class="badge bg-purple-lt">${entry.format_name}</strong></div>
+                    </td>
+                    <td><span class="badge ${statusBadgeClass}">${entry.status}</span></td>
+                    <td>
+                        <div>⭐ <strong>${entry.rating}</strong></div>
+                        <div class="text-muted small text-truncate" style="max-width: 180px;">${entry.notes || 'Нет заметок'}</div>
+                        <div class="mt-1">${editBtn}</div>
+                    </td>
+                    <td><div class="d-flex flex-wrap gap-1">${transitionBtns}</div></td>
+                    <td>
+                        <div class="btn-list flex-nowrap">
+                            <button class="btn btn-sm btn-outline-secondary" onclick="fetchHistory(${entry.id}, '${safeTitle}')" title="История объекта">📜</button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="openDeleteModal(${entry.id}, '${safeTitle}')" title="Удалить запись">✕</button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+
+            cardsHtml += `
+                <div class="col-sm-6 col-lg-4 mb-3" id="card-${entry.id}">
+                    <div class="card h-100" style="overflow:hidden; border-radius:12px;">
+                        ${entry.poster ? `<div style="width:100%; height:180px; overflow:hidden;"><img src="${entry.poster}" alt="${safeTitle}" style="width:100%; height:100%; object-fit:cover;"></div>` : '<div style="width:100%; height:180px; background:linear-gradient(135deg, #667eea 0%, #764ba2 100%); display:flex; align-items:center; justify-content:center; color:white; font-size:3rem;">🎬</div>'}
+                        <div class="card-body d-flex flex-column">
+                            <h3 class="card-title mb-1"><a href="${entry.detail_url}" class="text-reset">${entry.title}</a></h3>
+                            <div class="mb-2 d-flex flex-wrap gap-1">
+                                <span class="badge bg-blue-lt">${entry.kind}</span>
+                                <span class="badge ${statusBadgeClass}">${entry.status}</span>
+                                <span class="badge bg-purple-lt">${entry.format_name}</span>
+                            </div>
+                            <div class="mb-1 text-muted small">Оценка: <strong>⭐ ${entry.rating}</strong></div>
+                            <div class="text-muted small mb-2 text-truncate">${entry.notes || 'Заметок пока нет'}</div>
+                            <div class="mb-2">${genresBadge}</div>
+
+                            <!-- Блок кнопок переходов -->
+                            <div class="mb-2 p-2 bg-light rounded d-flex flex-wrap gap-1">${transitionBtns}</div>
+
+                            <div class="mt-auto pt-2 border-top d-flex justify-content-between align-items-center">
+                                ${editBtn}
+                                <div class="btn-list">
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="fetchHistory(${entry.id}, '${safeTitle}')" title="История">📜</button>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="openDeleteModal(${entry.id}, '${safeTitle}')" title="Удалить">✕</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        tableBody.innerHTML = tableHtml;
+        cardsContainer.innerHTML = cardsHtml;
+    }
+
+    // 3. ВЫПОЛНЕНИЕ БИЗНЕС-ПЕРЕХОДА ЧЕРЕЗ API (С КОНТРОЛЕМ ТРАНЗАКЦИЙ)
+    async function changeStatus(entryId, targetStatus, simulateError = false) {
+        try {
+            const response = await fetch(`/api/entry/${entryId}/update/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({ status: targetStatus, simulate_error: simulateError })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                showApiAlert(data.error || `Ошибка ${response.status}`, true);
+                return;
+            }
+
+            showApiAlert(data.message || 'Статус успешно обновлён!');
+            await fetchCatalogData();
+        } catch (err) {
+            showApiAlert('Сетевая ошибка при обращении к API: ' + err.message, true);
+        }
+    }
+
+    // 4. ЗАГРУЗКА ИСТОРИИ СОБЫТИЙ
+    async function fetchHistory(entryId, titleName) {
+        try {
+            const response = await fetch(`/api/entry/${entryId}/history/`);
+            if (!response.ok) throw new Error('Ошибка сервера при загрузке истории');
+
+            const data = await response.json();
+            const events = data.events || [];
+            let html = titleName ? `<h5 class="mb-3">История для: <strong>${titleName}</strong></h5>` : `<h5 class="mb-3">Вся история библиотеки</h5>`;
+
+            if (events.length === 0) {
+                html += `<p class="text-muted">История событий для этой записи пока пуста.</p>`;
+            } else {
+                html += `<div class="table-responsive"><table class="table table-sm table-striped">
+                    <thead>
+                        <tr>
+                            <th>Дата и время</th>
+                            <th>Тип события</th>
+                            <th>Инициатор</th>
+                            <th>Описание</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+                events.forEach(ev => {
+                    html += `<tr>
+                        <td><small>${ev.timestamp_formatted}</small></td>
+                        <td><span class="badge bg-blue-lt">${ev.event_type_display || ev.event_type}</span></td>
+                        <td><small>${ev.initiator_name}</small></td>
+                        <td><small>${ev.description}</small></td>
+                    </tr>`;
+                });
+
+                html += `</tbody></table></div>`;
+            }
+
+            let modalEl = document.getElementById('historyOverlayCustom');
+            if (!modalEl) {
+                const modalHtml = `
+                    <div id="historyOverlayCustom" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; backdrop-filter:blur(4px);" onclick="closeCustomHistoryModal(event)">
+                        <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:30px; border-radius:12px; max-width:700px; width:90%; max-height:85vh; overflow-y:auto; box-shadow:0 10px 40px rgba(0,0,0,0.3);" onclick="event.stopPropagation()">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h3 class="m-0">Журнал аудита (История)</h3>
+                                <button type="button" class="btn-close" onclick="closeCustomHistoryModal()"></button>
+                            </div>
+                            <div id="historyModalBodyCustom"></div>
+                        </div>
+                    </div>`;
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                modalEl = document.getElementById('historyOverlayCustom');
+            }
+
+            document.getElementById('historyModalBodyCustom').innerHTML = html;
+            modalEl.style.display = 'block';
+        } catch (err) {
+            console.error('Ошибка:', err);
+            alert('Не удалось загрузить историю с сервера.');
+        }
+    }
+
+    function closeCustomHistoryModal(event) {
+        if (event && event.target !== event.currentTarget) return;
+        const modalEl = document.getElementById('historyOverlayCustom');
+        if (modalEl) modalEl.style.display = 'none';
+    }
+
+    // Загрузка глобальной истории в нижнюю табличку на странице
+    async function fetchGlobalHistory() {
+        try {
+            const res = await fetch('/api/entry/0/history/');
+            const data = await res.json();
+            const events = data.events || [];
+            const tbody = document.getElementById('historyTableBody');
+            if (!tbody) return;
+
+            if (events.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="text-muted text-center">История событий пока пуста</td></tr>`;
+                return;
+            }
+
+            let html = '';
+            events.slice(0, 10).forEach(ev => {
+                html += `
+                    <tr>
+                        <td><small>${ev.timestamp_formatted}</small></td>
+                        <td><span class="badge bg-blue-lt">${ev.event_type_display || ev.event_type}</span></td>
+                        <td><small>${ev.initiator_name}</small></td>
+                        <td><small>${ev.description}</small></td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+        } catch (e) {
+            console.error('Ошибка загрузки глобальной истории', e);
+        }
+    }
+
+    // 5. УДАЛЕНИЕ С ПОДТВЕРЖДЕНИЕМ (DELETE)
+    function openDeleteModal(entryId, title) {
+        document.getElementById('deleteEntryId').value = entryId;
+        document.getElementById('deleteModalTitle').textContent = title;
+        document.getElementById('deleteOverlay').style.display = 'block';
+    }
+
+    function closeDeleteModal(event) {
+        if (event && event.target !== event.currentTarget) return;
+        document.getElementById('deleteOverlay').style.display = 'none';
+    }
+
+    async function confirmDeleteEntry() {
+        const entryId = document.getElementById('deleteEntryId').value;
+        try {
+            const res = await fetch(`/api/entry/${entryId}/delete/`, {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': getCookie('csrftoken') }
+            });
+            const data = await res.json();
+            closeDeleteModal();
+
+            if (!res.ok) {
+                showApiAlert(data.error || `Ошибка удаления (${res.status})`, true);
+                return;
+            }
+
+            showApiAlert(`Запись #${entryId} успешно удалена из базы данных.`);
+            fetchCatalogData();
+        } catch (err) {
+            showApiAlert('Ошибка при удалении: ' + err.message, true);
+        }
+    }
+
+    // 6. ФИЛЬТРАЦИЯ (ЖАНР + СТАТУС + ПОИСК)
+    function filterByGenre(genre, btnElement) {
+        currentGenre = genre;
+        document.querySelectorAll('.genre-chip').forEach(btn => {
+            btn.classList.remove('btn-primary', 'active');
+            btn.classList.add('btn-outline-secondary');
+        });
+        btnElement.classList.remove('btn-outline-secondary');
+        btnElement.classList.add('btn-primary', 'active');
+        fetchCatalogData();
+    }
+
+    function filterByStatus(statusCode, btnElement) {
+        currentStatus = statusCode;
+        document.querySelectorAll('.status-chip').forEach(btn => {
+            btn.classList.remove('btn-azure', 'active');
+            btn.classList.add('btn-outline-secondary');
+        });
+        btnElement.classList.remove('btn-outline-secondary');
+        btnElement.classList.add('btn-azure', 'active');
+        fetchCatalogData();
+    }
+
+    let searchTimeout;
+    function handleSearchInput() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => { fetchCatalogData(); }, 300);
+    }
+
+    function setViewMode(mode) {
+        localStorage.setItem('catalogViewMode', mode);
+        document.getElementById('tableView').style.display = mode === 'cards' ? 'none' : 'block';
+        document.getElementById('apiCardsContainer').style.display = mode === 'cards' ? 'flex' : 'none';
+        document.getElementById('viewTableBtn').classList.toggle('active', mode === 'table');
+        document.getElementById('viewCardsBtn').classList.toggle('active', mode === 'cards');
+    }
+
+    // 7. МОДАЛЬНОЕ ОКНО РЕДАКТИРОВАНИЯ (PATCH)
+    function openNoteModal(entryId, title, currentNote, currentRating) {
+        document.getElementById('noteEntryId').value = entryId;
+        document.getElementById('noteModalTitle').textContent = 'Редактирование: ' + title;
+        document.getElementById('noteTextarea').value = currentNote || '';
+        document.getElementById('editRatingInput').value = currentRating || '';
+        document.getElementById('noteMessage').style.display = 'none';
+        document.getElementById('saveNoteBtn').disabled = false;
+        document.getElementById('noteOverlay').style.display = 'block';
+    }
+
+    function closeNoteModal(event) {
+        if (event && event.target !== event.currentTarget) return;
+        document.getElementById('noteOverlay').style.display = 'none';
+    }
+
+    async function saveNote() {
+        const entryId = document.getElementById('noteEntryId').value;
+        const newNote = document.getElementById('noteTextarea').value.trim();
+        const newRating = document.getElementById('editRatingInput').value;
+        const saveBtn = document.getElementById('saveNoteBtn');
+        const messageDiv = document.getElementById('noteMessage');
+
+        saveBtn.disabled = true;
+        messageDiv.style.display = 'none';
+
+        try {
+            const response = await fetch(`/api/entry/${entryId}/note/`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({ notes: newNote, rating: newRating })
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Ошибка сохранения');
+
+            closeNoteModal();
+            showApiAlert('Данные записи успешно обновлены (PATCH)!');
+            fetchCatalogData();
+        } catch (error) {
+            messageDiv.textContent = error.message;
+            messageDiv.className = 'alert alert-danger mt-2';
+            messageDiv.style.display = 'block';
+            saveBtn.disabled = false;
+        }
+    }
+
+    // 8. МОДАЛЬНОЕ ОКНО СОЗДАНИЯ ЗАПИСИ (POST)
+    function openAddEntryModal() {
+        document.getElementById('addEntryForm').reset();
+        document.getElementById('addEntryMessage').style.display = 'none';
+        document.getElementById('submitEntryBtn').disabled = false;
+        document.getElementById('addEntryOverlay').style.display = 'block';
+    }
+
+    function closeAddEntryModal(event) {
+        if (event && event.target !== event.currentTarget) return;
+        document.getElementById('addEntryOverlay').style.display = 'none';
+    }
+
+    async function submitNewEntry(event) {
+        event.preventDefault();
+        const title = document.getElementById('newEntryTitle').value.trim();
+        const kind = document.getElementById('newEntryKind').value;
+        const formatName = document.getElementById('newEntryFormat').value.trim();
+        const genresText = document.getElementById('newEntryGenres').value.trim();
+        const rating = document.getElementById('newEntryRating').value;
+
+        const submitBtn = document.getElementById('submitEntryBtn');
+        const messageDiv = document.getElementById('addEntryMessage');
+        const genres = genresText ? genresText.split(',').map(g => g.trim()).filter(g => g) : [];
+
+        submitBtn.disabled = true;
+        messageDiv.style.display = 'none';
+
+        try {
+            const response = await fetch('/api/entry/create/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    title: title,
+                    kind: kind,
+                    format_name: formatName || 'Бумажная / Цифровая',
+                    genres: genres,
+                    rating: rating ? parseInt(rating) : null
+                })
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Ошибка создания');
+
+            closeAddEntryModal();
+            showApiAlert(`Произведение «${data.entry.title}» добавлено в библиотеку!`);
+            fetchCatalogData();
+        } catch (error) {
+            messageDiv.textContent = error.message;
+            messageDiv.className = 'alert alert-danger mt-2';
+            messageDiv.style.display = 'block';
+            submitBtn.disabled = false;
+        }
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    }
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        const savedMode = localStorage.getItem('catalogViewMode') || 'table';
+        setViewMode(savedMode);
+        fetchCatalogData();
+    });
+</script>
+{% endblock %}

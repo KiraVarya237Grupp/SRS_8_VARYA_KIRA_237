@@ -1,0 +1,149 @@
+:root {
+    --tblr-border-radius: 16px !important;
+}
+
+/* Светлая тема (по умолчанию) */
+body {
+    background-color: #f1f5f9 !important;
+}
+
+.card {
+    border: none !important;
+    border-radius: 20px !important;
+    box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.08), 0 8px 10px -6px rgba(59, 130, 246, 0.08) !important;
+    transition: transform 0.3s ease, box-shadow 0.3s ease !important;
+    background: #ffffff !important;
+    border-left: 5px solid #6366f1 !important; /* Фирменная неоновая полоска слева */
+}
+
+.card:hover {
+    transform: translateY(-6px) !important;
+    box-shadow: 0 20px 35px -10px rgba(99, 102, 241, 0.2) !important;
+}
+
+.btn-primary, .btn-secondary {
+    border-radius: 12px !important;
+    background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%) !important;
+    border: none !important;
+    font-weight: 600 !important;
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3) !important;
+    transition: all 0.2s ease !important;
+    color: #ffffff !important;
+}
+
+.btn-primary:hover, .btn-secondary:hover {
+    opacity: 0.9 !important;
+    transform: translateY(-2px) !important;
+}
+
+.form-control {
+    border-radius: 14px !important;
+    border: 2px solid #e2e8f0 !important;
+    padding: 0.75rem 1rem !important;
+    background-color: #ffffff !important;
+    color: #1e293b !important;
+}
+
+.form-control:focus {
+    border-color: #6366f1 !important;
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15) !important;
+}
+
+.badge {
+    border-radius: 10px !important;
+    padding: 0.5em 0.9em !important;
+    font-weight: 700 !important;
+}
+
+.btn-group {
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 12px !important;
+    padding: 3px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+    display: inline-flex !important;
+}
+
+.btn-group .btn {
+    border: none !important;
+    border-radius: 9px !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    color: #64748b !important;
+    background: transparent !important;
+    transition: all 0.2s ease !important;
+}
+
+.btn-group .btn.active,
+.btn-group .btn-primary {
+    background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%) !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3) !important;
+}
+
+.btn-group .btn:not(.active):hover {
+    background: #f1f5f9 !important;
+    color: #1e293b !important;
+}
+
+
+/* ==========================================
+   ТЕМНАЯ ТЕМА (Автоматически подстраивается)
+   ========================================== */
+
+[data-bs-theme="dark"] body {
+    background-color: #0f172a !important; /* Глубокий темно-синий оттенок под стиль Tabler */
+    color: #f1f5f9 !important;
+}
+
+[data-bs-theme="dark"] .card {
+    background: #1e293b !important; /* Красивый темный фон карточки */
+    color: #f1f5f9 !important;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3) !important;
+    border-left: 5px solid #818cf8 !important;
+}
+
+[data-bs-theme="dark"] .card:hover {
+    box-shadow: 0 20px 35px -10px rgba(129, 140, 248, 0.25) !important;
+}
+
+[data-bs-theme="dark"] .form-control {
+    background-color: #1e293b !important;
+    color: #ffffff !important;
+    border-color: #334155 !important;
+}
+
+[data-bs-theme="dark"] .form-control:focus {
+    border-color: #818cf8 !important;
+    box-shadow: 0 0 0 4px rgba(129, 140, 248, 0.2) !important;
+}
+
+[data-bs-theme="dark"] .btn-group {
+    background: #1e293b !important;
+    border-color: #334155 !important;
+}
+
+[data-bs-theme="dark"] .btn-group .btn {
+    color: #94a3b8 !important;
+}
+
+[data-bs-theme="dark"] .btn-group .btn:not(.active):hover {
+    background: #334155 !important;
+    color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] .table {
+    color: #f1f5f9 !important;
+    border-color: #334155 !important;
+}
+
+[data-bs-theme="dark"] .table th,
+[data-bs-theme="dark"] .table td {
+    border-color: #334155 !important;
+}
+
+[data-bs-theme="dark"] .modal-content {
+    background-color: #1e293b !important;
+    color: #f1f5f9 !important;
+    border: 1px solid #334155 !important;
+}

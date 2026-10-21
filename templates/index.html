@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-header d-print-none mb-3">
+    <div class="row g-2 align-items-center">
+        <div class="col">
+            <h2 class="page-title">Панель управления</h2>
+            <div class="text-muted mt-1">Добро пожаловать в ваш персональный трекер фильмов, книг, игр и сериалов.</div>
+        </div>
+        <div class="col-auto ms-auto d-print-none">
+            <div class="btn-list">
+                <a href="{% url 'catalog' %}" class="btn btn-primary">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 5l0 14" /><path d="M5 12l14 0" /></svg>
+                    Перейти к каталогу
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Статистические карточки -->
+<div class="row row-deck row-cards mb-4">
+    <div class="col-sm-6 col-lg-6">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="subheader">Всего произведений в базе</div>
+                </div>
+                <div class="h1 mb-3 text-blue">{{ total_titles }}</div>
+                <div class="text-muted">Общее количество добавленных объектов</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-6">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="subheader">Успешно завершено</div>
+                </div>
+                <div class="h1 mb-3 text-green">{{ completed_count }}</div>
+                <div class="text-muted">Просмотрено / Прочитано / Пройдено</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Блок с недавними записями -->
+<div class="card">
+    <div class="card-body">
+        <h3 class="card-title">Последние добавленные в трекер</h3>
+        {% if recent_entries %}
+        <div class="list-group list-group-flush">
+            {% for entry in recent_entries %}
+            <div class="list-group-item">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <strong>{{ entry.title.title }}</strong>
+                        <span class="text-muted ms-2">({{ entry.title.get_kind_display }})</span>
+                    </div>
+                    <div class="col-auto">
+                        <span class="badge bg-yellow-lt">{{ entry.get_status_display }}</span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">Пока нет записей. Перейдите в админ-панель Django, чтобы добавить первые элементы!</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

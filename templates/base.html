@@ -1,0 +1,41 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Медиакаталог{% endblock %}</title>
+
+    <link href="{% static 'catalog/css/tabler.min.css' %}" rel="stylesheet"/>
+
+    <link href="{% static 'catalog/css/style.css' %}" rel="stylesheet"/>
+
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="layout-boxed">
+    <div class="page">
+        {% include "partials/navbar.html" %}
+
+        <div class="page-wrapper">
+            <div class="page-body">
+                <div class="container-xl">
+                    {% block content %}{% endblock %}
+                </div>
+            </div>
+            {% include "partials/footer.html" %}
+        </div>
+    </div>
+
+    <script src="{% static 'catalog/js/tabler.min.js' %}"></script>
+    <script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.body.setAttribute('data-bs-theme', savedTheme);
+    });
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
